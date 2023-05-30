@@ -35,7 +35,7 @@ RX_SAMPLES_PER_SECOND = 25e6
 RX_DURATION_SECONDS = 300
 RX_CENTER_FREQUENCY_HZ = 1.0e9
 
-PREALLOCATE_OUTPUT_FILE = True
+PREALLOCATE_OUTPUT_FILE = False
 
 MP = True
 
@@ -261,6 +261,12 @@ def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
     logger.info(
         f"writer thread starting -> {samples.filename} {samples.size*samples.itemsize/1e9:0.3f} GB"
     )
+
+    if MP:
+        cmd = f"chrt -p 21 {os.getpid()}"
+        logger.info(f"Lowering proceess to default : {cmd}")
+        os.system(cmd)
+
     queue_size, buffer_size = rx_queue.shape
     warn_size = queue_size / 2
     while rx_queue_writer_running:
