@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import tqdm
 import queue
 import threading
+import multiprocessing as mp
 
 # Author: Aaron Heller aaron.heller@sri.com 24-May-2023
 
@@ -35,6 +36,8 @@ RX_DURATION_SECONDS = 300
 RX_CENTER_FREQUENCY_HZ = 1.0e9
 
 PREALLOCATE_OUTPUT_FILE = True
+
+MP = True
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -246,7 +249,10 @@ if args.preallocate_file:
 rx_queue_size = int(usrp.get_rx_rate() / len_recv_buffer)
 rx_queue = np.zeros((rx_queue_size, len_recv_buffer), dtype=np.complex64)
 
-rx_index_queue = queue.SimpleQueue()
+if MP:
+    rx_index_queue = mp.Queue()
+else:
+    rx_index_queue = queue.SimpleQueue()
 rx_queue_writer_running = True
 
 
@@ -276,11 +282,18 @@ def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
     samples.flush()
 
 
-writer_thread = threading.Thread(
-    name="writer",
-    target=rx_queue_writer,
-    args=(samples, rx_queue, rx_index_queue, file_format, float_to_int16_scale),
-)
+if MP:
+    writer_thread = mp.Process(
+        name="writer",
+        target=rx_queue_writer,
+        args=(samples, rx_queue, rx_index_queue, file_format, float_to_int16_scale),
+    )
+else:
+    writer_thread = threading.Thread(
+        name="writer",
+        target=rx_queue_writer,
+        args=(samples, rx_queue, rx_index_queue, file_format, float_to_int16_scale),
+    )
 
 # if file_format == np.int16:
 #         recv_buffer_int16 = np.zeros(2 * len_recv_buffer, dtype=np.int16)
@@ -306,6 +319,10 @@ try:
         f" on {streamer.get_num_channels()} channels"
         f" with {len_recv_buffer} samples per buffer"
     )
+    if MP:
+        cmd = f"chrt -r -p 99 {os.getpid()}"
+        logger.info(f"Raising proceess to real-time: {cmd}")
+        os.system(cmd)
 
     # Start Stream
     stream_cmd = uhd.types.StreamCMD(uhd.types.StreamMode.start_cont)
@@ -335,14 +352,21 @@ except RuntimeError as re:
     logger.error(re)
     rx_queue_writer_running = False
 
+# Stop Stream
+stream_cmd = uhd.types.StreamCMD(uhd.types.StreamMode.stop_cont)
+streamer.issue_stream_cmd(stream_cmd)
+
+if MP:
+    cmd = f"chrt -p 21 {os.getpid()}"
+    logger.info(f"Lowering proceess to default : {cmd}")
+    os.system(cmd)
+
+
 # make sure everything is written to disk
 rx_index_queue.put((-1, -1))  # stop writer
 writer_thread.join()
 samples.flush()
 
-# Stop Stream
-stream_cmd = uhd.types.StreamCMD(uhd.types.StreamMode.stop_cont)
-streamer.issue_stream_cmd(stream_cmd)
 
 # once more with feeling
 samples.flush()
