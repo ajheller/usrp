@@ -324,14 +324,16 @@ try:
         logger.info(f"Raising proceess to real-time: {cmd}")
         os.system(cmd)
 
+    rx_iter = zip(
+        it.cycle(range(rx_queue_size)), tqdm.trange(num_samps // len_recv_buffer)
+    )
+
     # Start Stream
     stream_cmd = uhd.types.StreamCMD(uhd.types.StreamMode.start_cont)
     stream_cmd.stream_now = True
     streamer.issue_stream_cmd(stream_cmd)
 
-    for ii, i in zip(
-        it.cycle(range(rx_queue_size)), tqdm.trange(num_samps // len_recv_buffer)
-    ):
+    for ii, i in rx_iter:
         streamer.recv(recv_buffer, metadata)
         rx_queue[ii, :] = recv_buffer[0, :]
         rx_index_queue.put((i, ii))
