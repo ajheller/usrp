@@ -254,6 +254,18 @@ if MP:
 else:
     rx_index_queue = queue.SimpleQueue()
 rx_queue_writer_running = True
+sync_running = True
+
+
+def sync_and_sleep(sleep_time=1):
+    if MP:
+        cmd = f"chrt -p 21 {os.getpid()}"
+        logger.info(f"Lowering proceess to default : {cmd}")
+        os.system(cmd)
+
+    while sync_running:
+        os.sync()
+        time.sleep(sleep_time)
 
 
 def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
@@ -279,7 +291,7 @@ def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
             rx_queue_writer_max_q = qs
         if qs > warn_size:
             logger.warning(f"RX writer queue is big: {qs}")
-        if False and ii == 0:
+        if False and i % 500_000 == 0:
             samples.flush()
 
     logger.info(
@@ -294,6 +306,8 @@ if MP:
         target=rx_queue_writer,
         args=(samples, rx_queue, rx_index_queue, file_format, float_to_int16_scale),
     )
+
+    sync_tread = mp.Process(name="sync", target=sync_and_sleep, args=())
 else:
     writer_thread = threading.Thread(
         name="writer",
@@ -317,6 +331,7 @@ else:
 try:
     bl = len(recv_buffer[0])
     writer_thread.start()
+    sync_tread.start()
     time.sleep(2)
     logger.info(
         f"Recording for {num_samps/usrp.get_rx_rate()} seconds ({num_samps} samples)"
@@ -355,10 +370,12 @@ except KeyboardInterrupt as ki:
         f"Recording interrupted by user after {i * len_recv_buffer/usrp.get_rx_rate():0.3f} seconds ({i * len_recv_buffer} samples)."
     )
     rx_queue_writer_running = False
+    sync_running = False
 
 except RuntimeError as re:
     logger.error(re)
     rx_queue_writer_running = False
+    sync_running = False
 
 # Stop Stream
 stream_cmd = uhd.types.StreamCMD(uhd.types.StreamMode.stop_cont)
