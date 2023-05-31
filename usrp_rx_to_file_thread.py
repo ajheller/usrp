@@ -13,6 +13,8 @@ import multiprocessing as mp
 
 # Author: Aaron Heller aaron.heller@sri.com 24-May-2023
 
+## Getting reliable long steaming captures from Ettus B210 SDR at full 56 MSa/s
+
 # References:
 #   https://kb.ettus.com/UHD_Python_API
 #   https://files.ettus.com/manual/classuhd_1_1usrp_1_1multi__usrp.html
@@ -24,6 +26,12 @@ import multiprocessing as mp
 # Examples:
 #   https://github.com/EttusResearch/uhd/tree/master/host/examples
 #   https://ewf-engineering.com/a-deeper-look-into-the-ettus-usrp-b200/
+#
+# Linux kernel tuning for I/O intensive processes (search on "vm.dirty_background_ratio vm.dirty_ratio")
+#   https://www.wlangiewicz.com/2021/10/24/memory-tweaks-to-prevent-hiccups-on-linux/
+#   https://lonesysadmin.net/2013/12/22/better-linux-disk-caching-performance-vm-dirty_ratio/
+#   https://documentation.suse.com/sles/15-SP3/html/SLES-all/cha-tuning-memory.html
+#   https://unix.stackexchange.com/questions/579708/whats-the-best-dirty-background-ratio-and-dirty-ratio-for-my-usage
 #
 # -------------------------------------------------------------------------------------
 
