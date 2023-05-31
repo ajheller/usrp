@@ -96,7 +96,7 @@ logger.setLevel(logging.DEBUG)
 console = logging.StreamHandler()
 logger.addHandler(console)
 formatter = LogFormatter(
-    fmt="[%(asctime)s] [%(levelname)s] (%(threadName)-10s) %(message)s"
+    fmt="[%(asctime)s] [%(levelname)s] %(processName)s (%(threadName)-10s) %(message)s"
 )
 console.setFormatter(formatter)
 
@@ -257,7 +257,16 @@ rx_queue_writer_running = True
 sync_running = True
 
 
-def sync_and_sleep(sleep_time=1):
+def set_process_priority(priority, scheduler=None, pid=None):
+    if pid is None:
+        pid = os.getpid()
+    cmd = f"chrt -p 21 {pid}"
+    logger.info(f"Setting process priority to {priority} : {cmd}")
+    os.system(cmd)
+
+
+def sync_and_sleep(sleep_time=10):
+    logger.info("sync process starting")
     if MP:
         cmd = f"chrt -p 21 {os.getpid()}"
         logger.info(f"Lowering proceess to default : {cmd}")
@@ -265,7 +274,9 @@ def sync_and_sleep(sleep_time=1):
 
     while sync_running:
         os.sync()
+        os.system("echo 1 > /proc/sys/vm/drop_caches")
         time.sleep(sleep_time)
+    logger.info("sync process exiting")
 
 
 def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
@@ -276,7 +287,7 @@ def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
 
     if MP:
         cmd = f"chrt -p 21 {os.getpid()}"
-        logger.info(f"Lowering proceess to default : {cmd}")
+        logger.info(f"Lowering process to default priority : {cmd}")
         os.system(cmd)
 
     queue_size, buffer_size = rx_queue.shape
@@ -388,10 +399,12 @@ if MP:
 
 
 # make sure everything is written to disk
-rx_index_queue.put((-1, -1))  # stop writer
+rx_index_queue.put((-1, -1))  # stop writer and let it finish
 writer_thread.join()
 samples.flush()
 
+sync_running = False
+sync_tread.join()
 
 # once more with feeling
 samples.flush()
