@@ -261,8 +261,6 @@ if MP:
     rx_index_queue = mp.Queue()
 else:
     rx_index_queue = queue.SimpleQueue()
-rx_queue_writer_running = True
-sync_running = True
 
 
 def set_process_priority(priority, scheduler=None, pid=None):
@@ -273,6 +271,9 @@ def set_process_priority(priority, scheduler=None, pid=None):
     os.system(cmd)
 
 
+exit_sync = mp.Event()
+
+
 def sync_and_sleep(sleep_time=10):
     logger.info("sync process starting")
     if MP:
@@ -280,11 +281,20 @@ def sync_and_sleep(sleep_time=10):
         logger.info(f"Lowering proceess to default : {cmd}")
         os.system(cmd)
 
-    while sync_running:
-        os.sync()
-        os.system("echo 1 > /proc/sys/vm/drop_caches")
-        time.sleep(sleep_time)
+    try:
+        while True:
+            if exit_sync.is_set():
+                break
+            os.sync()
+            os.system("echo 1 > /proc/sys/vm/drop_caches")
+            time.sleep(sleep_time)
+    except KeyboardInterrupt:
+        logger.warning("caught keyboard interrupt")
+
     logger.info("sync process exiting")
+
+
+exit_writer = mp.Event()
 
 
 def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
@@ -300,18 +310,24 @@ def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
 
     queue_size, buffer_size = rx_queue.shape
     warn_size = queue_size / 2
-    while rx_queue_writer_running:
-        (i, ii) = rx_index_queue.get(block=True)
-        if i < 0:
-            break
-        samples[i * buffer_size : (i + 1) * buffer_size] = rx_queue[ii, :]
-        qs = rx_index_queue.qsize()
-        if qs > rx_queue_writer_max_q:
-            rx_queue_writer_max_q = qs
-        if qs > warn_size:
-            logger.warning(f"RX writer queue is big: {qs}")
-        if False and i % 500_000 == 0:
-            samples.flush()
+    try:
+        while True:
+            if exit_writer.is_set():
+                break
+            (i, ii) = rx_index_queue.get(block=True)
+            if i < 0:
+                break
+            samples[i * buffer_size : (i + 1) * buffer_size] = rx_queue[ii, :]
+            qs = rx_index_queue.qsize()
+            if qs > rx_queue_writer_max_q:
+                rx_queue_writer_max_q = qs
+            if qs > warn_size:
+                logger.warning(f"RX writer queue is big: {qs}")
+            if False and i % 500_000 == 0:
+                samples.flush()
+    except KeyboardInterrupt:
+        logger.warning("Caught keyboard interrupt")
+        pass
 
     logger.info(
         f"writer thread stopping, queue_size = {rx_index_queue.qsize()} max = {rx_queue_writer_max_q}/{queue_size}"
@@ -348,9 +364,10 @@ else:
 #                 print("!", flush=True)
 
 try:
+    i = 0  # so exception doesn't error
     bl = len(recv_buffer[0])
-    writer_thread.start()
     sync_tread.start()
+    writer_thread.start()
     time.sleep(2)
     logger.info(
         f"Recording for {num_samps/usrp.get_rx_rate()} seconds ({num_samps} samples)"
@@ -361,7 +378,7 @@ try:
     )
     if MP:
         cmd = f"chrt -r -p 99 {os.getpid()}"
-        logger.info(f"Raising proceess to real-time: {cmd}")
+        logger.info(f"Raising process to real-time: {cmd}")
         os.system(cmd)
 
     rx_iter = zip(
@@ -388,13 +405,14 @@ except KeyboardInterrupt as ki:
     logger.warning(
         f"Recording interrupted by user after {i * len_recv_buffer/usrp.get_rx_rate():0.3f} seconds ({i * len_recv_buffer} samples)."
     )
-    rx_queue_writer_running = False
-    sync_running = False
+    exit_writer.set()
+    exit_sync.set()
 
 except RuntimeError as re:
     logger.error(re)
-    rx_queue_writer_running = False
-    sync_running = False
+    exit_writer.set()
+    exit_sync.set()
+
 
 # Stop Stream
 stream_cmd = uhd.types.StreamCMD(uhd.types.StreamMode.stop_cont)
@@ -411,7 +429,7 @@ rx_index_queue.put((-1, -1))  # stop writer and let it finish
 writer_thread.join()
 samples.flush()
 
-sync_running = False
+exit_sync.set()
 sync_tread.join()
 
 # once more with feeling
