@@ -22,6 +22,7 @@ import multiprocessing as mp
 #   https://files.ettus.com/manual/page_usrp_b200.html
 #   https://github.com/EttusResearch/uhd
 #   https://knowledge.ni.com/KnowledgeArticleDetails?id=kA03q0000019mApCAI&l=en-US
+#   http://66.228.35.220/Workshop_GnuRadio_Slides_20190507.pdf  # most comprehensive discussion I've seen!
 #
 # Examples:
 #   https://github.com/EttusResearch/uhd/tree/master/host/examples
