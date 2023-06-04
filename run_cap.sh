@@ -18,4 +18,5 @@ echo compiling ...
 # run with rt scheduler and high priority
 # chrt --rr 20 /usr/bin/python3 $TARGET "$@"
 # chrt --fifo 20 /usr/bin/python3 $TARGET "$@"
-chrt  20 /usr/bin/python3 $TARGET "$@"
+# chrt  20 /usr/bin/python3 $TARGET "$@"
+/usr/bin/python3 $TARGET "$@"

@@ -36,8 +36,29 @@ import multiprocessing as mp
 #
 # -------------------------------------------------------------------------------------
 
+# Can we run with real-time scheduler?
+try:
+    sched = os.sched_getscheduler(0)
+    param = os.sched_getparam(0)
+    os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(99))
+except PermissionError as e:
+    print(e)
+finally:
+    os.sched_setscheduler(0, sched, param)
+
+
+try:
+    os.seteuid(0)
+except PermissionError as e:
+    print(e)
+
+if os.geteuid() != 0:
+    exit(
+        "You need to have root privileges to run this script.\nPlease try again, this time using 'sudo'. Exiting."
+    )
+
 # config variables
-UHD_USRP_ARGS = "num_recv_frames=1024"  # default is 32, which is way to small
+UHD_USRP_ARGS = "num_recv_frames=1979"  # default is 32, which is way to small
 # UHD_USRP_ARGS += ", type=b200, serial=xxxxxxx" # to find a specific Ettus
 
 RX_SAMPLES_PER_SECOND = 25e6
@@ -77,6 +98,13 @@ parser.add_argument(
     default="test-mmap",
     help="Output file name without extension",
 )
+parser.add_argument(
+    "--device_args",
+    "-a",
+    type=str,
+    default=UHD_USRP_ARGS,
+    help="USRP initialization arguments",
+)
 parser.add_argument("--preallocate_file", "-p", action="store_true", default=False)
 args = parser.parse_args()
 
@@ -105,7 +133,7 @@ logger.setLevel(logging.DEBUG)
 console = logging.StreamHandler()
 logger.addHandler(console)
 formatter = LogFormatter(
-    fmt="[%(asctime)s] [%(levelname)s] %(processName)s (%(threadName)-10s) %(message)s"
+    fmt="[%(asctime)s] [%(levelname)s] (%(processName)s) (%(threadName)-10s) %(message)s"
 )
 console.setFormatter(formatter)
 
@@ -191,7 +219,7 @@ def preallocate_output_file(samples, len_recv_buffer):
         logger.error("Disk write speed not adquate for sample rate")
 
 
-usrp = uhd.usrp.MultiUSRP("num_recv_frames=1024")
+usrp = uhd.usrp.MultiUSRP(args.device_args)
 
 dev_rx_channels = usrp.get_rx_num_channels()
 dev_tx_channels = usrp.get_tx_num_channels()
@@ -264,28 +292,28 @@ else:
     rx_index_queue = queue.SimpleQueue()
 
 
-def set_process_priority(priority, scheduler=None, pid=None):
-    if pid is None:
-        pid = os.getpid()
-    cmd = f"chrt -p 21 {pid}"
-    logger.info(f"Setting process priority to {priority} : {cmd}")
-    os.system(cmd)
+def set_process_priority(priority, scheduler=None, affinity=None, pid=0):
+    if scheduler:
+        os.sched_setscheduler(0, scheduler, os.sched_param(priority))
+    else:
+        os.setpriority(os.PRIO_PROCESS, 0, priority)
+    if affinity:
+        os.sched_setaffinity(0, affinity)
+
+    logger.info(
+        f"Setting scheduler, priority, affinity : {os.sched_getscheduler(0)}, {os.getpriority(os.PRIO_PROCESS, 0)}, {os.sched_getaffinity(0)}"
+    )
 
 
-exit_sync = mp.Event()
+sync_running = mp.Event()
 
 
 def sync_and_sleep(sleep_time=10):
     logger.info("sync process starting")
-    if MP:
-        cmd = f"chrt -p 21 {os.getpid()}"
-        logger.info(f"Lowering proceess to default : {cmd}")
-        os.system(cmd)
+    set_process_priority(0, affinity=(3,))
 
     try:
-        while True:
-            if exit_sync.is_set():
-                break
+        while sync_running.is_set():
             os.sync()
             os.system("echo 1 > /proc/sys/vm/drop_caches")
             time.sleep(sleep_time)
@@ -295,7 +323,7 @@ def sync_and_sleep(sleep_time=10):
     logger.info("sync process exiting")
 
 
-exit_writer = mp.Event()
+writer_running = mp.Event()
 
 
 def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
@@ -304,17 +332,12 @@ def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
         f"writer thread starting -> {samples.filename} {samples.size*samples.itemsize/1e9:0.3f} GB"
     )
 
-    if MP:
-        cmd = f"chrt -p 21 {os.getpid()}"
-        logger.info(f"Lowering process to default priority : {cmd}")
-        os.system(cmd)
+    set_process_priority(10, scheduler=os.SCHED_RR, affinity=(4,))
 
     queue_size, buffer_size = rx_queue.shape
     warn_size = queue_size / 2
     try:
-        while True:
-            if exit_writer.is_set():
-                break
+        while writer_running.is_set():
             (i, ii) = rx_index_queue.get(block=True)
             if i < 0:
                 break
@@ -367,7 +390,9 @@ else:
 try:
     i = 0  # so exception doesn't error
     bl = len(recv_buffer[0])
+    sync_running.set()
     sync_tread.start()
+    writer_running.set()
     writer_thread.start()
     time.sleep(2)
     logger.info(
@@ -377,11 +402,14 @@ try:
         f" on {streamer.get_num_channels()} channels"
         f" with {len_recv_buffer} samples per buffer"
     )
-    if MP:
-        cmd = f"chrt -r -p 99 {os.getpid()}"
-        logger.info(f"Raising process to real-time: {cmd}")
-        os.system(cmd)
 
+    os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(99))
+    os.sched_setaffinity(0, (5,))
+    logger.info(
+        f"Raising process to real-time: {os.sched_getscheduler(0)}, {os.getpriority(os.PRIO_PROCESS, 0)}"
+    )
+
+    # define the iterator here because we want to minimize the time from when we start the stream to when we read the first buffer
     rx_iter = zip(
         it.cycle(range(rx_queue_size)), tqdm.trange(num_samps // len_recv_buffer)
     )
@@ -406,23 +434,25 @@ except KeyboardInterrupt as ki:
     logger.warning(
         f"Recording interrupted by user after {i * len_recv_buffer/usrp.get_rx_rate():0.3f} seconds ({i * len_recv_buffer} samples)."
     )
-    exit_writer.set()
-    exit_sync.set()
+    writer_running.clear()
+    sync_running.clear()
 
 except RuntimeError as re:
     logger.error(re)
-    exit_writer.set()
-    exit_sync.set()
+    writer_running.clear()
+    sync_running.clear()
 
 
 # Stop Stream
 stream_cmd = uhd.types.StreamCMD(uhd.types.StreamMode.stop_cont)
 streamer.issue_stream_cmd(stream_cmd)
 
-if MP:
-    cmd = f"chrt -p 21 {os.getpid()}"
-    logger.info(f"Lowering proceess to default : {cmd}")
-    os.system(cmd)
+set_process_priority(0, scheduler=os.SCHED_OTHER)
+if False and MP:
+    # cmd = f"chrt -p 21 {os.getpid()}"
+    # logger.info(f"Lowering proceess to default : {cmd}")
+    # os.system(cmd)
+    os.setpriority(os.PRIO_PROCESS, 0, 21)
 
 
 # make sure everything is written to disk
@@ -430,11 +460,12 @@ rx_index_queue.put((-1, -1))  # stop writer and let it finish
 writer_thread.join()
 samples.flush()
 
-exit_sync.set()
+sync_running.clear()
 sync_tread.join()
 
 # once more with feeling
 samples.flush()
+os.sync()
 
 # print(len(samples))
 # print(samples[0:100])
