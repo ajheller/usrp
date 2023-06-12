@@ -61,7 +61,7 @@ if os.geteuid() != 0:
 UHD_USRP_ARGS = "num_recv_frames=1979"  # default is 32, which is way to small
 # UHD_USRP_ARGS += ", type=b200, serial=xxxxxxx" # to find a specific Ettus
 
-RX_SAMPLES_PER_SECOND = 25e6
+RX_SAMPLES_PER_SECOND = 56e6
 RX_DURATION_SECONDS = 300
 RX_CENTER_FREQUENCY_HZ = 1.0e9
 
@@ -261,11 +261,7 @@ print("buffer size = ", len_recv_buffer)
 
 float_to_int16_scale = np.iinfo(np.int16).max
 
-# os.nice(-20)
-
-# Receive Samples
-# samples = np.zeros(num_samps, dtype=np.complex64)
-# samples = np.memmap("test-mmap-c64.bin", dtype=np.complex64, mode='write', shape=num_samps)
+# Receive Samples -- memory mapped array
 if file_format == np.int16:
     samples = np.memmap(
         "test-mmap-i16i.bin", dtype=np.int16, mode="write", shape=num_samps * 2
@@ -282,14 +278,12 @@ samples.flush()
 if args.preallocate_file:
     preallocate_output_file(samples, len_recv_buffer)
 
-# hold 1 seconds worth of buffers
+
+# hold 1 seconds worth of buffers -- if we fill this, something else is very wrong
 rx_queue_size = int(usrp.get_rx_rate() / len_recv_buffer)
 rx_queue = np.zeros((rx_queue_size, len_recv_buffer), dtype=np.complex64)
 
-if MP:
-    rx_index_queue = mp.Queue()
-else:
-    rx_index_queue = queue.SimpleQueue()
+rx_index_queue = mp.Queue()
 
 
 def set_process_priority(priority, scheduler=None, affinity=None, pid=0):
@@ -305,7 +299,12 @@ def set_process_priority(priority, scheduler=None, affinity=None, pid=0):
     )
 
 
+# these two events are used to exit the sync and writer processes.
+#   could be one event, in some literature this is called a poison-pill
+#   we might want two for the write, one to signal immediate exit, another
+#   to say, empty the queue, flush, and exit.
 sync_running = mp.Event()
+writer_running = mp.Event()
 
 
 def sync_and_sleep(sleep_time=10):
@@ -321,9 +320,6 @@ def sync_and_sleep(sleep_time=10):
         logger.warning("caught keyboard interrupt")
 
     logger.info("sync process exiting")
-
-
-writer_running = mp.Event()
 
 
 def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
@@ -345,7 +341,7 @@ def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
             qs = rx_index_queue.qsize()
             if qs > rx_queue_writer_max_q:
                 rx_queue_writer_max_q = qs
-            if qs > warn_size:
+            if qs > warn_size and qs % 1000 == 0:
                 logger.warning(f"RX writer queue is big: {qs}")
             if False and i % 500_000 == 0:
                 samples.flush()
@@ -359,20 +355,14 @@ def rx_queue_writer(samples, rx_queue, rx_index_queue, file_format, multiplier):
     samples.flush()
 
 
-if MP:
-    writer_thread = mp.Process(
-        name="writer",
-        target=rx_queue_writer,
-        args=(samples, rx_queue, rx_index_queue, file_format, float_to_int16_scale),
-    )
+writer_thread = mp.Process(
+    name="writer",
+    target=rx_queue_writer,
+    args=(samples, rx_queue, rx_index_queue, file_format, float_to_int16_scale),
+)
 
-    sync_tread = mp.Process(name="sync", target=sync_and_sleep, args=())
-else:
-    writer_thread = threading.Thread(
-        name="writer",
-        target=rx_queue_writer,
-        args=(samples, rx_queue, rx_index_queue, file_format, float_to_int16_scale),
-    )
+sync_tread = mp.Process(name="sync", target=sync_and_sleep, args=(4,))
+
 
 # if file_format == np.int16:
 #         recv_buffer_int16 = np.zeros(2 * len_recv_buffer, dtype=np.int16)
@@ -448,12 +438,6 @@ stream_cmd = uhd.types.StreamCMD(uhd.types.StreamMode.stop_cont)
 streamer.issue_stream_cmd(stream_cmd)
 
 set_process_priority(0, scheduler=os.SCHED_OTHER)
-if False and MP:
-    # cmd = f"chrt -p 21 {os.getpid()}"
-    # logger.info(f"Lowering proceess to default : {cmd}")
-    # os.system(cmd)
-    os.setpriority(os.PRIO_PROCESS, 0, 21)
-
 
 # make sure everything is written to disk
 rx_index_queue.put((-1, -1))  # stop writer and let it finish
