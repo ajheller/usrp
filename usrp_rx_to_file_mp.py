@@ -64,7 +64,11 @@ if os.geteuid() != 0:
     )
 
 # config variables
-UHD_USRP_ARGS = "num_recv_frames=1979"  # default is 32, which is way to small
+UHD_USRP_ARGS = (
+    # default is 32, which is way to small
+    "num_recv_frames=1979,"
+    "num_send_frames=1979"
+)
 # UHD_USRP_ARGS += ", type=b200, serial=xxxxxxx" # to find a specific Ettus
 
 RX_SAMPLES_PER_SECOND = 56e6
@@ -259,7 +263,9 @@ metadata = uhd.types.RXMetadata()
 streamer = usrp.get_rx_stream(st_args)
 
 # allocate receive buffer
-len_recv_buffer = streamer.get_max_num_samps()
+len_recv_buffer = (
+    streamer.get_max_num_samps()
+)  # this is the size of the h/w buffer, you can make it bugger and UHD will adapt, but it does get you much
 num_recv_buffers = int(np.ceil(num_samps_min / len_recv_buffer))
 # rounded up to integer number of buffers
 num_samps = num_recv_buffers * len_recv_buffer
