@@ -30,6 +30,7 @@ import multiprocessing as mp
 #   https://ewf-engineering.com/a-deeper-look-into-the-ettus-usrp-b200/
 #
 # Linux kernel tuning for I/O intensive processes (search on "vm.dirty_background_ratio vm.dirty_ratio")
+#   https://www.kernel.org/doc/html/next/admin-guide/sysctl/vm.html   # Documentation for /proc/sys/vm/
 #   https://www.wlangiewicz.com/2021/10/24/memory-tweaks-to-prevent-hiccups-on-linux/
 #   https://lonesysadmin.net/2013/12/22/better-linux-disk-caching-performance-vm-dirty_ratio/
 #   https://documentation.suse.com/sles/15-SP3/html/SLES-all/cha-tuning-memory.html
@@ -142,6 +143,7 @@ formatter = LogFormatter(
 )
 console.setFormatter(formatter)
 
+"""  # not used currently... too slow
 # To estimate the number of dropped samples in an overflow situation, we need the following
 #   . On the first overflow, set had_an_overflow and record the time
 #   . On the next ERROR_CODE_NONE, calculate how long its been since the recorded time, and use the
@@ -202,6 +204,7 @@ def process_metadata(usrp, metadata):
     else:
         logger.error("Receiver error: %s", metadata.strerror())
         logger.error("Unexpected error on receive, continuing...")
+ """
 
 
 def preallocate_output_file(samples, len_recv_buffer):
