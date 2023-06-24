@@ -23,6 +23,7 @@ import multiprocessing as mp
 #   https://github.com/EttusResearch/uhd
 #   https://knowledge.ni.com/KnowledgeArticleDetails?id=kA03q0000019mApCAI&l=en-US
 #   http://66.228.35.220/Workshop_GnuRadio_Slides_20190507.pdf  # most comprehensive discussion I've seen!
+#   https://kb.ettus.com/Building_and_Installing_the_USRP_Open-Source_Toolchain_(UHD_and_GNU_Radio)_on_Linux#UHD_on_Linux
 #
 # Examples:
 #   https://github.com/EttusResearch/uhd/tree/master/host/examples
@@ -33,6 +34,10 @@ import multiprocessing as mp
 #   https://lonesysadmin.net/2013/12/22/better-linux-disk-caching-performance-vm-dirty_ratio/
 #   https://documentation.suse.com/sles/15-SP3/html/SLES-all/cha-tuning-memory.html
 #   https://unix.stackexchange.com/questions/579708/whats-the-best-dirty-background-ratio-and-dirty-ratio-for-my-usage
+#
+# Memory-mapping vs. sequential I/O
+#   https://stackoverflow.com/questions/35891525/mmap-for-writing-sequential-log-file-for-speed
+#   https://lkml.iu.edu/hypermail/linux/kernel/0004.0/0728.html (Linus, himself!)
 #
 # -------------------------------------------------------------------------------------
 
