@@ -40,6 +40,9 @@ import multiprocessing as mp
 #   https://stackoverflow.com/questions/35891525/mmap-for-writing-sequential-log-file-for-speed
 #   https://lkml.iu.edu/hypermail/linux/kernel/0004.0/0728.html (Linus, himself!)
 #
+# Handy programs:
+#   https://codeberg.org/rtcqs/rtcqs  # asseses RT capabilites of system and OS
+#
 # -------------------------------------------------------------------------------------
 
 # Can we run with real-time scheduler?
