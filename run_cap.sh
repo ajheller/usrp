@@ -14,6 +14,8 @@ for ((i=0;i<$(nproc --all);i++)); do sudo cpufreq-set -c $i -r -g performance; d
 export PYTHONPATH=/usr/local/lib/python3.8/site-packages/:$PYTHONPATH
 echo $PYTHONPATH
 
+/usr/bin/python3 -m rtcqs
+
 export TARGET=./usrp_rx_to_file_mp.py
 echo compiling ...
 /usr/bin/python3 -m py_compile $TARGET
