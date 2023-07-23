@@ -15,3 +15,33 @@ It all runs perfectly except for a single glitch about 2 minutes in.  You can wa
 Here's the funny thing.  At one point, I was running an rsync backup to our NAS and it didn't glitch, so rsync was forcing enough I/O buffer churn, that it was doing the delayed writes earlier.  So loading the machine improved the performance.  The machine is a 24 core, SFF Dell, with a M2 SSD, so well overspec'ed for the task. 
 
 I need to try sequential writes vs. memory-mapped. 
+
+Marc Lavalée says:
+
+Is your computer running with a RT kernel? It could help.
+
+Kernel 6.1 seem to have capabilities for realtime scheduling, but 
+there's also a PREMPT_RT version of kernel 6.1, I don't know if it'd be 
+better.
+
+>> I need to try sequential writes vs. memory-mapped.
+>
+> I suspect it'd be better to write without much delay using a small 
+> buffer.
+
+Instead of SCHED_RR, why not using  SCHED_FIFO? They're similar, but 
+maybe one is working better than the other.
+
+There's a mention of the realtime kernel in the sched man page :
+
+https://www.man7.org/linux/man-pages/man7/sched.7.html
+
+I replied:
+
+I like the realtime kernel idea... looks pretty easy to do.  Tuning parameters on a stock kernel would be specific to a particular machine, how much memory, disk. speeds.  RT kernel is a more disciplined approach
+   https://ubuntu.com/blog/real-time-ubuntu-released
+   https://ubuntu.com/blog/real-time-kernel-technical
+I remember Nando used to compile the RT kernels for the Planet CCRMA distro himself, using patches from a physician in Australia.
+
+Key feature:
+     “The scheduler of the real-time Ubuntu beta can preempt threads in the kernel, including in critical sections, interrupt handlers, and interrupt-disable code sequences, guaranteeing bounded responses.”
