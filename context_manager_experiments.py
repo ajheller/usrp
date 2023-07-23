@@ -27,13 +27,15 @@ def test1(new_value=0):
         saved_thing = get_thing()
         set_thing(new_value)
         print(thing, saved_thing)
-        yield
+        yield  # this makes test1 a generator, if "yield foo", the "as" varaible is bound to foo
     except Exception as e:
         print("Caught ", e)
         raise
     else:
+        # do this if no exceptions
         print("no exceptions!")
     finally:
+        # always do this
         print("cleanup")
         set_thing(saved_thing)
 
