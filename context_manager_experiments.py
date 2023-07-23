@@ -3,6 +3,11 @@
 
 import contextlib
 
+# Resources:
+#   https://docs.python.org/3/library/contextlib.html
+#   https://stackoverflow.com/questions/60367476/context-manager-that-handles-exceptions
+#   https://realpython.com/python-with-statement/#coding-class-based-context-managers
+
 # two ways...
 
 # proxy for a system resourse like process priority
