@@ -48,5 +48,5 @@ I like the realtime kernel idea... looks pretty easy to do.  Tuning parameters o
 I remember Nando used to compile the RT kernels for the Planet CCRMA distro himself, using patches from a physician in Australia.
 
 Key feature:
-
+```
     “The scheduler of the real-time Ubuntu beta can preempt threads in the kernel, including in critical sections, interrupt handlers, and interrupt-disable code sequences, guaranteeing bounded responses.”
