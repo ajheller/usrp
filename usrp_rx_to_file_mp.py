@@ -303,6 +303,7 @@ rx_queue = np.zeros((rx_queue_size, len_recv_buffer), dtype=np.complex64)
 rx_index_queue = mp.Queue()
 
 
+#  This needs a context object wrapper, so we can say-- with process_priority(...):
 def set_process_priority(priority, scheduler=None, affinity=None, pid=0):
     if scheduler:
         os.sched_setscheduler(0, scheduler, os.sched_param(priority))
@@ -397,11 +398,11 @@ sync_tread = mp.Process(name="sync", target=sync_and_sleep, args=(4,))
 try:
     i = 0  # so exception doesn't error
     bl = len(recv_buffer[0])
-    sync_running.set()
+    sync_running.set()  # this should be set by the sync process, not here
     sync_tread.start()
-    writer_running.set()
+    writer_running.set()  # this should be set by the writer process, not here
     writer_thread.start()
-    time.sleep(2)
+    time.sleep(2)  # this should be a wait on the sync and writer events
     logger.info(
         f"Recording for {num_samps/usrp.get_rx_rate()} seconds ({num_samps} samples)"
         f" at {usrp.get_rx_rate()/1e6} MSa/s"
