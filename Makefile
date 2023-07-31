@@ -1,6 +1,9 @@
 all:
 	echo all
 
+probe:
+	uhd_usrp_probe
+
 kernel-vm-params:
 	sudo sysctl -a |grep "vm\."
 
