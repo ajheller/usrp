@@ -150,7 +150,9 @@ formatter = LogFormatter(
 )
 console.setFormatter(formatter)
 
-"""  # not used currently... too slow
+
+# not used currently... too slow
+""" 
 # To estimate the number of dropped samples in an overflow situation, we need the following
 #   . On the first overflow, set had_an_overflow and record the time
 #   . On the next ERROR_CODE_NONE, calculate how long its been since the recorded time, and use the
@@ -211,7 +213,7 @@ def process_metadata(usrp, metadata):
     else:
         logger.error("Receiver error: %s", metadata.strerror())
         logger.error("Unexpected error on receive, continuing...")
- """
+"""
 
 
 def preallocate_output_file(samples, len_recv_buffer):
