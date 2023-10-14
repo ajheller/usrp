@@ -1,0 +1,13 @@
+# srimeta.yaml
+sriProjects:
+- 'OHHOME.A.1100.0001'
+
+sriContacts:
+- 'aaron.heller@sri.com'
+- 'pat.lincoln@sri.com'
+
+description: 'Ettus B210 experiments'
+
+sriOrgs:
+- '01.001.01302'
+- '01.001.01304'
