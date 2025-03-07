@@ -1,15 +1,18 @@
 import argparse
-import uhd
 import itertools as it
 import logging
-import numpy as np
+import multiprocessing as mp
 import os
-import time
-from datetime import datetime, timedelta
-import tqdm
 import queue
 import threading
-import multiprocessing as mp
+import time
+from datetime import datetime, timedelta
+
+import numpy as np
+import tqdm
+import uhd
+
+# pylint: disable=missing-function-docstring, missing-class-docstring, missing-module-docstring
 
 # Author: Aaron Heller aaron.heller@sri.com 24-May-2023
 
@@ -152,6 +155,7 @@ console.setFormatter(formatter)
 
 
 # not used currently... too slow
+# pylint: disable=pointless-string-statement
 """ 
 # To estimate the number of dropped samples in an overflow situation, we need the following
 #   . On the first overflow, set had_an_overflow and record the time
